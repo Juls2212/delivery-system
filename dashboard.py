@@ -51,8 +51,15 @@ class Dashboard(ttk.Frame):
         # Sección de la última entrega realizada
         last_delivery_frame = ttk.LabelFrame(self, text="Última Entrega")
         last_delivery_frame.pack(fill="x", padx=10, pady=5)
-        
+
         ttk.Label(last_delivery_frame, textvariable=self.last_delivery_var).pack(padx=5, pady=5)
+
+        # Botón para refrescar los datos del dashboard manualmente
+        ttk.Button(self, text="Actualizar Dashboard", command=self._refresh).pack(pady=8)
+
+    def _refresh(self):
+        if hasattr(self.controller, "refresh_all_data"):
+            self.controller.refresh_all_data()
 
     # Actualiza los valores visibles en pantalla usando un diccionario de datos
     def update_data(self, data):
