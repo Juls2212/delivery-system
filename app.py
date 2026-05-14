@@ -290,10 +290,10 @@ class DeliveryManagementApp(tk.Tk):
 
     def _complete_selected_order(self) -> None:
         order_id_value = self.selected_order_id.get().strip()
-        if not order_id_value.isdigit():
+        if not order_id_value:
             show_message(
                 "Dato inválido",
-                "Ingresa un ID de pedido numérico para marcarlo como entregado.",
+                "Ingresa un ID de pedido para marcarlo como entregado.",
                 kind="warning",
             )
             return
@@ -301,7 +301,7 @@ class DeliveryManagementApp(tk.Tk):
         self._execute_and_render(
             method_name="complete_selected_order",
             heading="Pedido marcado como entregado",
-            args=(int(order_id_value),),
+            args=(order_id_value,),
         )
 
     def _show_pending_orders(self) -> None:
@@ -392,12 +392,24 @@ class DeliveryManagementApp(tk.Tk):
         labels = {
             "id": "ID",
             "customer": "Cliente",
+            "restaurant": "Restaurante",
+            "origin": "Origen",
+            "destination": "Destino",
+            "items": "Artículos",
+            "priority": "Prioridad",
             "address": "Dirección",
             "status": "Estado",
             "order_id": "ID pedido",
             "courier_id": "ID repartidor",
+            "courier_name": "Nombre del repartidor",
             "name": "Nombre",
+            "zone": "Zona",
+            "available": "Disponible",
+            "active_orders": "Pedidos activos",
+            "delivered": "Entregas completadas",
             "availability": "Disponibilidad",
+            "final_status": "Estado final",
+            "timestamp": "Fecha y hora",
         }
         return labels.get(field_name, field_name.replace("_", " ").capitalize())
 
