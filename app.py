@@ -1,11 +1,44 @@
 from __future__ import annotations
 
 import tkinter as tk
-from importlib import import_module
 from tkinter import ttk
 from typing import Any, Callable, Iterable, Optional
 
+from dashboard import Dashboard
+from dashboard_controller import DashboardController
+from frontend_controller import FrontendController
+from history_view import HistoryView
+from map_view import MapView
+from report_generator import ReportGenerator
+from seed_data import create_sample_system
 from ui_components import ResultTextBox, StandardButton, TitleLabel, show_message
+
+
+class DashboardWindow(tk.Toplevel):
+    """Ventana secundaria con las vistas de dashboard conectadas al backend real."""
+
+    def __init__(self, parent: tk.Misc, system: dict[str, object]) -> None:
+        super().__init__(parent)
+        self.title("Dashboard del Sistema de Entregas")
+        self.geometry("920x680")
+        self.minsize(760, 540)
+
+        self.controller = DashboardController(self, system=system)
+
+        notebook = ttk.Notebook(self)
+        notebook.pack(fill="both", expand=True)
+
+        dashboard_tab = Dashboard(notebook, self.controller)
+        history_tab = HistoryView(notebook, self.controller)
+        map_tab = MapView(notebook, self.controller)
+        report_tab = ReportGenerator(notebook, self.controller)
+
+        notebook.add(dashboard_tab, text="Dashboard")
+        notebook.add(history_tab, text="Historial")
+        notebook.add(map_tab, text="Mapa")
+        notebook.add(report_tab, text="Reportes")
+
+        self.controller.set_views(dashboard_tab, history_tab, map_tab)
 
 
 class DeliveryManagementApp(tk.Tk):
@@ -16,9 +49,10 @@ class DeliveryManagementApp(tk.Tk):
         self.minsize(980, 620)
         self.configure(background="#eef3f7")
 
-        self.controller = self._load_controller()
+        self.backend_system = create_sample_system()
+        self.controller = FrontendController(self.backend_system)
+        self.dashboard_window: Optional[DashboardWindow] = None
 
-        # Estas variables mantienen el estado mínimo de la interfaz sin mover lógica de negocio aquí.
         self.selected_order_id = tk.StringVar()
         self.status_text = tk.StringVar(value="Panel listo")
 
@@ -26,36 +60,13 @@ class DeliveryManagementApp(tk.Tk):
         self._configure_grid()
         self._build_layout()
 
-    def _load_controller(self) -> Optional[object]:
-        # Este cargador retrasa la dependencia del backend para permitir que la UI arranque incluso
-        # cuando el controlador real aún no está disponible en el workspace.
-        try:
-            module = import_module("frontend_controller")
-            controller_class = getattr(module, "FrontendController")
-            return controller_class()
-        except Exception as error:
-            self.after(
-                150,
-                lambda: show_message(
-                    "Controlador no disponible",
-                    (
-                        "La interfaz inició, pero no fue posible cargar "
-                        f"`frontend_controller.py`.\n\nDetalle: {error}"
-                    ),
-                    kind="warning",
-                ),
-            )
-            return None
-
     def _configure_styles(self) -> None:
-        # Esta configuración define una estética moderna y consistente para la ventana principal.
         style = ttk.Style(self)
         style.theme_use("clam")
 
         style.configure("Root.TFrame", background="#eef3f7")
         style.configure("Panel.TFrame", background="#ffffff", relief="flat")
         style.configure("Sidebar.TFrame", background="#12324a")
-        style.configure("Accent.TFrame", background="#d9e8f2")
 
         style.configure(
             "Title.TLabel",
@@ -102,17 +113,23 @@ class DeliveryManagementApp(tk.Tk):
             foreground="#12324a",
             borderwidth=0,
         )
-        style.map("Ghost.TButton", background=[("active", "#cbd5e1"), ("pressed", "#bac7d6")])
-        style.configure("Status.TLabel", background="#eef3f7", foreground="#475569", font=("Segoe UI", 10))
+        style.map(
+            "Ghost.TButton",
+            background=[("active", "#cbd5e1"), ("pressed", "#bac7d6")],
+        )
+        style.configure(
+            "Status.TLabel",
+            background="#eef3f7",
+            foreground="#475569",
+            font=("Segoe UI", 10),
+        )
 
     def _configure_grid(self) -> None:
-        # Esta malla permite que los paneles crezcan de forma proporcional.
         self.columnconfigure(0, weight=0)
         self.columnconfigure(1, weight=1)
         self.rowconfigure(0, weight=1)
 
     def _build_layout(self) -> None:
-        # Esta estructura separa navegación, métricas y acciones para una mejor lectura visual.
         self._build_sidebar()
         self._build_main_area()
 
@@ -135,13 +152,10 @@ class DeliveryManagementApp(tk.Tk):
             justify="left",
         ).grid(row=1, column=0, sticky="w", pady=(0, 24))
 
-        menu_items = [
-            "Pedidos",
-            "Repartidores",
-            "Entregas activas",
-            "Historial visual",
-        ]
-        for index, item in enumerate(menu_items, start=2):
+        for index, item in enumerate(
+            ["Pedidos", "Repartidores", "Entregas activas", "Dashboard y reportes"],
+            start=2,
+        ):
             ttk.Label(sidebar, text=f"• {item}", style="SidebarText.TLabel").grid(
                 row=index, column=0, sticky="w", pady=4
             )
@@ -172,7 +186,7 @@ class DeliveryManagementApp(tk.Tk):
         TitleLabel(header, text="Sistema de Gestión de Entregas").grid(row=0, column=0, sticky="w")
         ttk.Label(
             header,
-            text="Interfaz principal para operar el sistema sin exponer lógica del backend.",
+            text="Interfaz principal para operar el sistema sin exponer lógica interna del backend.",
             style="Status.TLabel",
         ).grid(row=1, column=0, sticky="w", pady=(6, 0))
 
@@ -187,9 +201,9 @@ class DeliveryManagementApp(tk.Tk):
             summary_frame.columnconfigure(column, weight=1)
 
         cards = [
-            ("Pedidos", "Consulta pendientes y activos."),
-            ("Repartidores", "Visualiza disponibilidad actual."),
-            ("Operaciones", "Ejecuta acciones desde el panel derecho."),
+            ("Pedidos", "Consulta pendientes, prioridades y actividad actual."),
+            ("Repartidores", "Visualiza disponibilidad y carga de trabajo."),
+            ("Operaciones", "Ejecuta acciones y abre el dashboard completo."),
         ]
 
         for column, (title, description) in enumerate(cards):
@@ -243,28 +257,27 @@ class DeliveryManagementApp(tk.Tk):
             ("Ver pedidos pendientes", self._show_pending_orders, "Ghost.TButton"),
             ("Ver repartidores", self._show_couriers, "Ghost.TButton"),
             ("Ver pedidos activos", self._show_active_orders, "Ghost.TButton"),
+            ("Abrir dashboard", self._open_dashboard, "Ghost.TButton"),
             ("Limpiar pantalla", self._clear_screen, "Ghost.TButton"),
             ("Salir", self.destroy, "Ghost.TButton"),
         ]
 
         for row_index, (label, command, style_name) in enumerate(buttons, start=3):
-            StandardButton(
-                actions_panel,
-                text=label,
-                command=command,
-                style_name=style_name,
-            ).grid(row=row_index, column=0, sticky="ew", pady=5)
+            StandardButton(actions_panel, text=label, command=command, style_name=style_name).grid(
+                row=row_index, column=0, sticky="ew", pady=5
+            )
+
+    def _open_dashboard(self) -> None:
+        if self.dashboard_window is not None and self.dashboard_window.winfo_exists():
+            self.dashboard_window.focus_set()
+            self.dashboard_window.lift()
+            self.status_text.set("Dashboard ya abierto")
+            return
+
+        self.dashboard_window = DashboardWindow(self, self.backend_system)
+        self.status_text.set("Dashboard abierto")
 
     def _get_controller_method(self, method_name: str) -> Optional[Callable[..., Any]]:
-        # Este resolvedor evita errores repetidos cuando el controlador real aún no está conectado.
-        if self.controller is None:
-            show_message(
-                "Backend no disponible",
-                "No se pudo cargar el controlador. Revisa frontend_controller.py y sus dependencias.",
-                kind="warning",
-            )
-            return None
-
         method = getattr(self.controller, method_name, None)
         if method is None:
             show_message(
@@ -273,20 +286,13 @@ class DeliveryManagementApp(tk.Tk):
                 kind="error",
             )
             return None
-
         return method
 
     def _create_sample_order(self) -> None:
-        self._execute_and_render(
-            method_name="create_sample_order",
-            heading="Pedido de prueba creado",
-        )
+        self._execute_and_render("create_sample_order", "Pedido de prueba creado")
 
     def _assign_next_order(self) -> None:
-        self._execute_and_render(
-            method_name="assign_next_order",
-            heading="Asignación realizada",
-        )
+        self._execute_and_render("assign_next_order", "Asignación realizada")
 
     def _complete_selected_order(self) -> None:
         order_id_value = self.selected_order_id.get().strip()
@@ -297,33 +303,22 @@ class DeliveryManagementApp(tk.Tk):
                 kind="warning",
             )
             return
-
         self._execute_and_render(
-            method_name="complete_selected_order",
-            heading="Pedido marcado como entregado",
+            "complete_selected_order",
+            "Pedido marcado como entregado",
             args=(order_id_value,),
         )
 
     def _show_pending_orders(self) -> None:
-        self._execute_and_render(
-            method_name="show_pending_orders",
-            heading="Pedidos pendientes",
-        )
+        self._execute_and_render("show_pending_orders", "Pedidos pendientes")
 
     def _show_couriers(self) -> None:
-        self._execute_and_render(
-            method_name="show_couriers",
-            heading="Repartidores",
-        )
+        self._execute_and_render("show_couriers", "Repartidores")
 
     def _show_active_orders(self) -> None:
-        self._execute_and_render(
-            method_name="show_active_orders",
-            heading="Pedidos activos",
-        )
+        self._execute_and_render("show_active_orders", "Pedidos activos")
 
     def _clear_screen(self) -> None:
-        # Esta acción solo limpia la salida visual sin tocar el estado del backend.
         self.result_box.clear()
         self.status_text.set("Pantalla limpia")
 
@@ -333,7 +328,6 @@ class DeliveryManagementApp(tk.Tk):
         heading: str,
         args: tuple[Any, ...] = (),
     ) -> None:
-        # Este flujo ejecuta el controlador y transforma la respuesta en salida legible para el usuario.
         method = self._get_controller_method(method_name)
         if method is None:
             return
@@ -341,14 +335,19 @@ class DeliveryManagementApp(tk.Tk):
         try:
             result = method(*args)
         except Exception as error:
-            show_message("Error de ejecución", f"Ocurrió un error al ejecutar la acción.\n\nDetalle: {error}", kind="error")
+            show_message(
+                "Error de ejecución",
+                f"Ocurrió un error al ejecutar la acción.\n\nDetalle: {error}",
+                kind="error",
+            )
             self.status_text.set("Se produjo un error durante la operación")
             return
 
         self._render_result(heading=heading, result=result)
+        if self.dashboard_window is not None and self.dashboard_window.winfo_exists():
+            self.dashboard_window.controller.refresh_all_data()
 
     def _render_result(self, heading: str, result: Any) -> None:
-        # Esta representación es puramente visual y soporta estructuras simples devueltas por el controlador.
         self.result_box.append(f"\n{heading}")
         self.result_box.append("-" * len(heading))
 
@@ -382,13 +381,10 @@ class DeliveryManagementApp(tk.Tk):
         self.status_text.set(f"{heading}: operación completada")
 
     def _append_mapping(self, values: dict[str, Any], indent: str = "") -> None:
-        # Este formato mejora la legibilidad de objetos serializados en la zona de resultados.
         for key, value in values.items():
-            label = self._translate_label(key)
-            self.result_box.append(f"{indent}{label}: {value}")
+            self.result_box.append(f"{indent}{self._translate_label(key)}: {value}")
 
     def _translate_label(self, field_name: str) -> str:
-        # Esta traducción mantiene la UI completamente en español aunque el código interno permanezca en inglés.
         labels = {
             "id": "ID",
             "customer": "Cliente",
