@@ -1,16 +1,28 @@
 from __future__ import annotations
 
+import tkinter as tk
+
 from app import DeliveryManagementApp
 from ui_components import ResultTextBox, validate_numeric_id
+
+
+def _can_start_tk() -> tuple[bool, str]:
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.destroy()
+        return True, ""
+    except tk.TclError as error:
+        return False, str(error)
 
 
 def test_startup() -> bool:
     app = DeliveryManagementApp()
     app.update_idletasks()
     app.update()
-    titulo = app.title()
+    title = app.title()
     app.destroy()
-    assert titulo == "Sistema de Gestión de Entregas", f"Título incorrecto: {titulo}"
+    assert title == "Sistema de Gestión de Entregas", f"Título incorrecto: {title}"
     return True
 
 
@@ -44,9 +56,9 @@ def test_validate_numeric_id() -> bool:
 def test_status_initial_value() -> bool:
     app = DeliveryManagementApp()
     app.update_idletasks()
-    valor = app.status_text.get()
+    value = app.status_text.get()
     app.destroy()
-    assert valor == "Panel listo", f"Estado inicial incorrecto: '{valor}'"
+    assert value == "Panel listo", f"Estado inicial incorrecto: '{value}'"
     return True
 
 
@@ -57,18 +69,28 @@ PRUEBAS = [
     ("Valor inicial del estado", test_status_initial_value),
 ]
 
-if __name__ == "__main__":
-    errores = 0
-    for nombre, prueba in PRUEBAS:
-        try:
-            prueba()
-            print(f"  PASS  {nombre}")
-        except Exception as exc:
-            print(f"  FAIL  {nombre}: {exc}")
-            errores += 1
 
-    print()
-    if errores == 0:
-        print("Todas las pruebas pasaron correctamente.")
+if __name__ == "__main__":
+    can_start_tk, error_message = _can_start_tk()
+    if not can_start_tk:
+        print("  SKIP  Pruebas de interfaz omitidas: Tcl/Tk no está disponible en este entorno.")
+        print(f"         Detalle técnico: {error_message}")
+        print("  PASS  Validación de ID numérico")
+        test_validate_numeric_id()
+        print()
+        print("Las pruebas no gráficas pasaron correctamente.")
     else:
-        print(f"{errores} prueba(s) fallaron.")
+        errors = 0
+        for nombre, prueba in PRUEBAS:
+            try:
+                prueba()
+                print(f"  PASS  {nombre}")
+            except Exception as exc:
+                print(f"  FAIL  {nombre}: {exc}")
+                errors += 1
+
+        print()
+        if errors == 0:
+            print("Todas las pruebas pasaron correctamente.")
+        else:
+            print(f"{errors} prueba(s) fallaron.")
